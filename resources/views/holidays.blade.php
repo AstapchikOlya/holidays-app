@@ -29,7 +29,7 @@
                                     <div id="date-error" class="invalid-feedback"></div>
                                 </div>
                                 <div class="form-group">
-                                    <button type="submit" class="btn btn-primary btn-block mt-3">
+                                    <button type="submit" class="btn btn-primary btn-block mt-3 w-100">
                                         Check
                                     </button>
                                 </div>
@@ -48,7 +48,7 @@
         <script>
             $(document).ready(function(){
                 $('#date').datepicker({
-                    format: 'dd.mm.yyyy',
+                    format: 'yyyy-mm-dd',
                     todayHighlight: true,
                     autoclose: true
                 });
@@ -63,11 +63,14 @@
                         url: '{{ url("/holidays/check") }}',
                         data: formData,
                         success: function(response) {
-                            const alertClass = response.isHoliday
+                            const resultMsg = response.holidayMsg
+                                ? response.holidayMsg
+                                : "It's an ordinary date";
+                            const alertClass = response.holidayMsg
                                 ? 'alert-success'
                                 : 'alert-secondary';
 
-                            $('#holiday-result-msg').addClass(alertClass).text(response.message);
+                            $('#holiday-result-msg').removeClass('alert-success alert-secondary').addClass(alertClass).text(resultMsg);
                             $('#date').removeClass('is-invalid');
                             $('#date-error').text('');
                         },

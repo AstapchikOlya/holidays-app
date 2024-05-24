@@ -3,11 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\HolidayRequest;
+use App\Services\HolidayService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 
 class HolidayController extends Controller
 {
+    /**
+     * @param HolidayService $holidayService
+     */
+    public function __construct(private readonly HolidayService $holidayService) {}
+
     /**
      * @return View
      */
@@ -25,8 +31,7 @@ class HolidayController extends Controller
         $date = $request->input('date');
 
         return response()->json([
-            'isHoliday' => false,
-            'message' => 'test',
+            'holidayMsg' => $this->holidayService->checkHoliday($date),
         ]);
     }
 }

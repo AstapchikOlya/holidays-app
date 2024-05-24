@@ -15,7 +15,8 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('holiday_id');
             $table->date('date');
-            $table->integer('count');
+            $table->integer('count')->default(0);
+            $table->boolean('is_additional_day_off')->default(false);
             $table->timestamps();
 
             $table->foreign('holiday_id')

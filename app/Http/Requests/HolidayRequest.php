@@ -24,7 +24,7 @@ class HolidayRequest extends FormRequest
     public function rules()
     {
         return [
-            'date' => ['required', 'date_format:d.m.Y']
+            'date' => ['required', 'date_format:Y-m-d']
         ];
     }
 
@@ -37,7 +37,7 @@ class HolidayRequest extends FormRequest
     {
         return [
             'date.required' => 'The date field is required',
-            'date.date_format' => 'Incorrect date or date format (Accepted date format dd.mm.yyyy)',
+            'date.date_format' => 'Incorrect date or date format (Accepted date format yyyy-mm-dd)',
         ];
     }
 }
