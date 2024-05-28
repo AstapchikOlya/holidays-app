@@ -4,16 +4,17 @@ namespace App\Services;
 
 use App\Models\Holiday;
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
 
 class HolidayService
 {
     public function __construct(private readonly StatService $statService) {}
 
     /**
-     * @param string $date
+     * @param Carbon $date
      * @return string|null
      */
-    public function checkHoliday(string $date): string|null
+    public function checkHoliday(Carbon $date): string|null
     {
         $dateStat = $this->statService->checkDateStat($date);
 
@@ -27,12 +28,11 @@ class HolidayService
     }
 
     /**
-     * @param string $date
+     * @param Carbon $date
      * @return string|null
      */
-    private function checkAllHolidays(string $date): string|null
+    private function checkAllHolidays(Carbon $date): string|null
     {
-        $date = Carbon::parse($date);
         $holidays = Holiday::all();
         $foundHoliday = null;
         $isAdditionalDayOff = false;
@@ -49,8 +49,12 @@ class HolidayService
           $isAdditionalDayOff = !!$foundHoliday;
         }
 
-        return $foundHoliday
+        $holidayStat = $foundHoliday
             ? $this->statService->addHolidayDate($date, $foundHoliday->id, $isAdditionalDayOff)
+            : null;
+
+        return $holidayStat
+            ? $this->statService->generateHolidayMsg($holidayStat)
             : null;
     }
 
@@ -61,62 +65,115 @@ class HolidayService
      */
     private function isHoliday(Carbon $date, Holiday $holiday): bool
     {
-        $month = $date->format('F');
+        $condition = $holiday->condition;
 
-        return $holiday->month === $month
-            && ($this->isWithinPeriod($date, $holiday) || $this->isParticularWeekDay($date, $holiday));
+        return $this->isParticularDate($date, $condition)
+            || $this->isWithinPeriod($date, $condition)
+            || $this->isParticularWeekDay($date, $condition)
+            || $this->isLastWeekDay($date, $condition);
     }
 
     /**
      * @param Carbon $date
-     * @param Holiday $holiday
+     * @param string $holidayCondition
      * @return bool
      */
-    private function isWithinPeriod(Carbon $date, Holiday $holiday): bool
+    private function isParticularDate(Carbon $date, string $holidayCondition): bool
     {
-        $day = $date->day;
+        if (preg_match(Holiday::getParticularDatePattern(), $holidayCondition, $matches)) {
+            [, $day, $month] = $matches;
 
-        return !is_null($holiday->day_from)
-            && !is_null($holiday->day_to)
-            && $day >= $holiday->day_from
-            && $day <= $holiday->day_to;
-    }
-
-    /**
-     * @param Carbon $date
-     * @param Holiday $holiday
-     * @return bool
-     */
-    private function isParticularWeekDay(Carbon $date, Holiday $holiday): bool
-    {
-        $weekDay = $date->format('l');
-        $weekNumber = $date->weekOfMonth;
-
-        return $holiday->week_day === $weekDay
-            && ($holiday->week_number == $weekNumber || ($holiday->isLastWeek() && $this->isLastWeekDayOfMonth($date, $weekDay)));
-    }
-
-    /**
-     * @param Carbon $date
-     * @param string $weekDay
-     * @return bool
-     */
-    private function isLastWeekDayOfMonth(Carbon $date, string $weekDay): bool {
-        $lastDayOfMonth = $date->copy()->endOfMonth();
-
-        while ($lastDayOfMonth->format('l') != $weekDay) {
-            $lastDayOfMonth->subDay();
+            return $date->day == $day
+                && $date->englishMonth === $month;
         }
 
-        return $date->isSameDay($lastDayOfMonth);
+        return false;
     }
 
     /**
      * @param Carbon $date
-     * @param \Illuminate\Support\Collection $holidays
+     * @param string $holidayCondition
+     * @return bool
+     */
+    private function isWithinPeriod(Carbon $date, string $holidayCondition): bool
+    {
+        if (preg_match(Holiday::getDatePeriodPattern(), $holidayCondition, $matches)) {
+            $year = $date->year;
+            [, $dayFrom, $monthFrom, $dayTo, $monthTo] = $matches;
+
+            $startDate = Carbon::create($year, Carbon::parse($monthFrom)->month, $dayFrom);
+            $endDate = Carbon::create($year, Carbon::parse($monthTo)->month, $dayTo)->endOfDay();
+
+            return $date->betweenIncluded($startDate, $endDate);
+        }
+
+        return false;
+    }
+
+    /**
+     * @param Carbon $date
+     * @param string $holidayCondition
+     * @return bool
+     */
+    private function isParticularWeekDay(Carbon $date, string $holidayCondition): bool
+    {
+        if (preg_match(Holiday::getParticularWeekDayPattern(), $holidayCondition, $matches)) {
+            [, $weekDay, $weekNumber, $month] = $matches;
+
+            if ($date->englishMonth !== $month) {
+                return false;
+            }
+
+            $firstDayOfMonth = $date->copy()->firstOfMonth();
+            $targetDate = $firstDayOfMonth->copy();
+
+            if ($targetDate->englishDayOfWeek !== $weekDay) {
+                $targetDate->next($weekDay);
+            }
+
+            for ($i = 1; $i < $weekNumber; $i++) {
+                $targetDate->addWeek();
+            }
+
+            return $date->isSameDay($targetDate);
+        }
+
+        return false;
+    }
+
+    /**
+     * @param Carbon $date
+     * @param string $holidayCondition
+     * @return bool
+     */
+    private function isLastWeekDay(Carbon $date, string $holidayCondition): bool
+    {
+        if (preg_match(Holiday::getLastWeekDayPattern(), $holidayCondition, $matches)) {
+            [, $weekDay, $month] = $matches;
+
+            if ($date->englishMonth !== $month) {
+                return false;
+            }
+
+            $lastDayOfMonth = $date->copy()->endOfMonth();
+            $targetDate = $lastDayOfMonth->copy();
+
+            if ($targetDate->englishDayOfWeek !== $weekDay) {
+                $targetDate->previous($weekDay);
+            }
+
+            return $date->isSameDay($targetDate);
+        }
+
+        return false;
+    }
+
+    /**
+     * @param Carbon $date
+     * @param Collection $holidays
      * @return Holiday|null
      */
-    private function checkAdditionalDayOff(Carbon $date, \Illuminate\Support\Collection $holidays): Holiday|null
+    private function checkAdditionalDayOff(Carbon $date, Collection $holidays): Holiday|null
     {
         if ($date->isMonday()) {
             $prevSaturday = $date->copy()->subDays(2);
@@ -140,23 +197,11 @@ class HolidayService
      * @return bool
      */
     private function isWeekendHoliday(Carbon $date, Holiday $holiday): bool {
-        $month = $date->format('F');
+        $condition = $holiday->condition;
 
-        return $holiday->month === $month
-            && ($this->isParticularDay($date, $holiday) || $this->isParticularWeekDay($date, $holiday));
+        return $this->isParticularDate($date, $condition)
+            || $this->isParticularWeekDay($date, $condition)
+            || $this->isLastWeekDay($date, $condition);
     }
 
-    /**
-     * @param Carbon $date
-     * @param Holiday $holiday
-     * @return bool
-     */
-    private function isParticularDay(Carbon $date, Holiday $holiday): bool
-    {
-        $day = $date->day;
-
-        return !is_null($holiday->day_from)
-            && $holiday->day_from === $holiday->day_to
-            && $day === $holiday->day_from;
-    }
 }

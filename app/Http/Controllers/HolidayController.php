@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\HolidayRequest;
 use App\Services\HolidayService;
+use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 
@@ -28,10 +29,12 @@ class HolidayController extends Controller
      */
     public function check(HolidayRequest $request): JsonResponse
     {
-        $date = $request->input('date');
+        $date = Carbon::createFromFormat('Y-m-d', $request->input('date'));
+        $holidayMsg = $this->holidayService->checkHoliday($date);
 
         return response()->json([
-            'holidayMsg' => $this->holidayService->checkHoliday($date),
+            'isHoliday' => !!$holidayMsg,
+            'holidayMsg' => $holidayMsg ?? "It's an ordinary date",
         ]);
     }
 }

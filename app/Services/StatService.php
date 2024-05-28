@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Stat;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class StatService
 {
@@ -28,23 +29,24 @@ class StatService
     }
 
     /**
-     * @param string $date
+     * @param Carbon $date
      * @return Stat|null
      */
-    public function checkDateStat(string $date): Stat|null
+    public function checkDateStat(Carbon $date): Stat|null
     {
         DB::beginTransaction();
         try {
-            $dateStat = Stat::where('date', $date)->lockForUpdate()->first();
+            $dateStat = Stat::where('date', $date->toDateString())->lockForUpdate()->first();
 
             if ($dateStat) {
-                $this->increaseDateCounter($dateStat);
+                $dateStat->increment('count');
             }
 
             DB::commit();
         } catch (\Exception $e) {
-            $dateStat = null;
             DB::rollBack();
+            Log::info('Error while updating date stat count: ' . $e->getMessage());
+            return null;
         }
 
         return $dateStat;
@@ -54,27 +56,22 @@ class StatService
      * @param Carbon $date
      * @param int $holidayId
      * @param bool $isAdditionalDayOff
-     * @return string
+     * @return Stat|null
      */
-    public function addHolidayDate(Carbon $date, int $holidayId, bool $isAdditionalDayOff = false): string
+    public function addHolidayDate(Carbon $date, int $holidayId, bool $isAdditionalDayOff = false): Stat|null
     {
-        $stat = Stat::create([
-            'holiday_id'            => $holidayId,
-            'date'                  => $date,
-            'is_additional_day_off' => $isAdditionalDayOff,
-            'count'                 => 1,
-        ]);
+        try {
+            $stat = Stat::create([
+                'holiday_id'            => $holidayId,
+                'date'                  => $date,
+                'is_additional_day_off' => $isAdditionalDayOff,
+                'count'                 => 1,
+            ]);
+        } catch (\Exception $e) {
+            Log::info('Error while creating new date stat: ' . $e->getMessage());
+            return null;
+        }
 
-        return $this->generateHolidayMsg($stat);
-    }
-
-    /**
-     * @param Stat $dateState
-     * @return void
-     */
-    private function increaseDateCounter(Stat $dateState): void
-    {
-        $dateState->count++;
-        $dateState->save();
+        return $stat;
     }
 }

@@ -63,14 +63,11 @@
                         url: '{{ url("/holidays/check") }}',
                         data: formData,
                         success: function(response) {
-                            const resultMsg = response.holidayMsg
-                                ? response.holidayMsg
-                                : "It's an ordinary date";
-                            const alertClass = response.holidayMsg
+                            const alertClass = response.isHoliday
                                 ? 'alert-success'
                                 : 'alert-secondary';
 
-                            $('#holiday-result-msg').removeClass('alert-success alert-secondary').addClass(alertClass).text(resultMsg);
+                            $('#holiday-result-msg').removeClass('alert-success alert-secondary').addClass(alertClass).text(response.holidayMsg);
                             $('#date').removeClass('is-invalid');
                             $('#date-error').text('');
                         },

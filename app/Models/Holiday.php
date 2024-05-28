@@ -10,11 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /**
  * @property int $id
  * @property string $name
- * @property int $day_from
- * @property int $day_to
- * @property string $week_day
- * @property int|string $week_number
- * @property string $month
+ * @property string $condition
  * @property Carbon $created_at
  * @property Carbon $updated_at
  *
@@ -25,20 +21,25 @@ class Holiday extends Model
     use HasFactory;
 
     /**
-     *
-     */
-    public const LAST_WEEK = 'last';
-
-    /**
      * @var string[]
      */
     protected $fillable = [
         'name',
-        'day_from',
-        'day_to',
-        'week_day',
-        'week_number',
-        'month',
+        'condition',
+    ];
+
+    /**
+     *
+     */
+    const DAY_ENDINGS = [
+        'st', 'nd', 'rd', 'th'
+    ];
+
+    /**
+     *
+     */
+    const DAYS_OF_WEEK = [
+        'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
     ];
 
     /**
@@ -50,10 +51,39 @@ class Holiday extends Model
     }
 
     /**
-     * @return bool
+     * @return string
      */
-    public function isLastWeek(): bool
+    public static function getParticularDatePattern(): string
     {
-        return $this->week_number === self::LAST_WEEK;
+        $dayEndings = implode('|', self::DAY_ENDINGS);
+        return "/^(\\d{1,2})(?:$dayEndings) of (\\w+)$/";
+    }
+
+    /**
+     * @return string
+     */
+    public static function getDatePeriodPattern(): string
+    {
+        $dayEndings = implode('|', self::DAY_ENDINGS);
+        return "/^From (\\d{1,2})(?:$dayEndings) of (\\w+) till (\\d{1,2})(?:$dayEndings) of (\\w+)$/";
+    }
+
+    /**
+     * @return string
+     */
+    public static function getParticularWeekDayPattern(): string
+    {
+        $dayEndings = implode('|', self::DAY_ENDINGS);
+        $daysOfWeek = implode('|', self::DAYS_OF_WEEK);
+        return "/^($daysOfWeek) of the (\\d+)(?:$dayEndings) week of (\\w+)$/";
+    }
+
+    /**
+     * @return string
+     */
+    public static function getLastWeekDayPattern(): string
+    {
+        $daysOfWeek = implode('|', self::DAYS_OF_WEEK);
+        return "/^($daysOfWeek) of the last week of (\\w+)$/";
     }
 }
